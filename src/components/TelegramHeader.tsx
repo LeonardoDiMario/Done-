@@ -1,9 +1,9 @@
 import React from 'react';
-import { ChevronLeft, Zap, Plus, Gem, Crown, Globe } from 'lucide-react';
+import { ChevronLeft, Zap, Plus, Crown } from 'lucide-react';
 import { Character } from '../types';
 import { ActiveEntitlement } from './StoreModal';
 import { triggerHaptic } from '../utils/telegramSdk';
-import { SupportedLanguage, SUPPORTED_LANGUAGES } from '../utils/i18n';
+import { SupportedLanguage } from '../utils/i18n';
 
 interface TelegramHeaderProps {
   activeCharacter?: Character | null;
@@ -30,7 +30,6 @@ export const TelegramHeader: React.FC<TelegramHeaderProps> = ({
   return (
     <header className="sticky top-0 z-40 bg-[#0c0712]/95 backdrop-blur-xl border-b border-rose-900/30 text-slate-100 shadow-lg">
       <div className="w-full max-w-md mx-auto h-12 px-3 flex items-center justify-between gap-2">
-        {/* Left Side: Brand Logo & Badges OR Active Character */}
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           {activeCharacter ? (
             <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -60,16 +59,14 @@ export const TelegramHeader: React.FC<TelegramHeaderProps> = ({
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-rose-600 via-rose-500 to-amber-500 flex items-center justify-center shadow-sm shrink-0 border border-rose-400/40">
-                <Gem className="w-3.5 h-3.5 text-white fill-rose-200/30" />
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="relative w-7 h-7 shrink-0 flex items-center justify-center">
+                <div className="absolute inset-[3px] rotate-45 rounded-[5px] bg-gradient-to-br from-rose-300 via-rose-500 to-red-800 shadow-[0_0_12px_rgba(244,63,94,0.55)] border border-rose-200/70" />
+                <div className="relative w-2.5 h-2.5 rotate-45 rounded-[2px] bg-rose-100/70 shadow-sm" />
               </div>
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <span className="font-ruby-logo text-[13px] font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-200 via-rose-300 to-purple-200 tracking-tight whitespace-nowrap">
                   RUBY CHAN
-                </span>
-                <span className="text-[8px] font-extrabold text-purple-200 bg-purple-950/90 px-1 py-0.5 rounded border border-purple-400/60 leading-none inline-flex items-center shrink-0 shadow-sm">
-                  2.0
                 </span>
                 <span className="text-[8px] font-extrabold text-rose-100 bg-rose-900/90 px-1 py-0.5 rounded border border-rose-500/60 leading-none inline-flex items-center shrink-0 shadow-sm uppercase">
                   18+
@@ -84,7 +81,6 @@ export const TelegramHeader: React.FC<TelegramHeaderProps> = ({
           )}
         </div>
 
-        {/* Right Side: Currency Store Pill */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => {
@@ -100,10 +96,10 @@ export const TelegramHeader: React.FC<TelegramHeaderProps> = ({
             </span>
             <span className="w-px h-3 bg-rose-800/60 shrink-0" />
             <span className="flex items-center text-rose-300 gap-1 text-[11px] font-extrabold shrink-0">
-              <span className="text-[10px]">🔮</span>
+              <span className="w-2.5 h-2.5 rotate-45 rounded-[2px] bg-gradient-to-br from-rose-300 to-red-700 shadow-sm" />
               <span>{gems}</span>
             </span>
-            <span className="w-3.5 h-3.5 rounded-full bg-gradient-to-r from-rose-600 to-purple-600 group-hover:from-rose-500 group-hover:to-purple-500 text-white flex items-center justify-center text-[9px] shadow-sm shrink-0">
+            <span className="w-3.5 h-3.5 rounded-full bg-gradient-to-r from-rose-600 to-red-700 group-hover:from-rose-500 group-hover:to-red-600 text-white flex items-center justify-center text-[9px] shadow-sm shrink-0">
               <Plus className="w-2.5 h-2.5 text-white stroke-[3]" />
             </span>
           </button>
