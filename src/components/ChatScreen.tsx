@@ -222,6 +222,23 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         <div className="flex items-center space-x-1.5">
           <button
             onClick={() => {
+              triggerHaptic('medium');
+              const botUrl = `https://t.me/Rubby_Chan_Bot?start=char_${encodeURIComponent(character.id)}`;
+              if (window.Telegram?.WebApp) {
+                window.Telegram.WebApp.openTelegramLink(botUrl);
+              } else {
+                window.open(botUrl, '_blank');
+              }
+            }}
+            className="text-[11px] text-sky-300 bg-sky-950/40 hover:bg-sky-900/60 border border-sky-800/40 px-2 py-1 rounded-lg font-medium flex items-center gap-1 transition-all"
+            title="Chat in Telegram Bot (@Rubby_Chan_Bot)"
+          >
+            <Send className="w-3 h-3 text-sky-400" />
+            <span className="hidden sm:inline">Bot</span>
+          </button>
+
+          <button
+            onClick={() => {
               triggerHaptic('light');
               setIsWallpaperModalOpen(true);
             }}
@@ -283,7 +300,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           </p>
           <div className="pt-1 border-t border-rose-900/30 text-[10px] text-slate-500 flex items-center justify-center gap-1">
             <Sparkles className="w-3 h-3 text-amber-400" />
-            RubyChan AI Server Memory synced
+            RubyChan 2.0 AI Cloud Memory synced
           </div>
         </div>
 
@@ -313,6 +330,22 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
                 >
                   {/* Formatted Text */}
                   <div className="space-y-1">{renderFormattedText(msg.text)}</div>
+
+                  {/* Generated Together AI Image Rendering */}
+                  {msg.imageUrl && (
+                    <div className="mt-2.5 rounded-2xl overflow-hidden border border-rose-500/50 shadow-xl relative bg-black/40 group">
+                      <img
+                        src={msg.imageUrl}
+                        alt="Character Portrait"
+                        className="w-full max-h-80 object-cover rounded-xl transition-transform duration-300 group-hover:scale-[1.02]"
+                        loading="lazy"
+                      />
+                      <div className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md text-[10px] text-rose-300 border border-rose-500/40 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-lg">
+                        <Sparkles className="w-3 h-3 text-amber-400" />
+                        <span>Together AI Art</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Audio Speech Button for Bot Messages */}
                   {isBot && (

@@ -186,7 +186,7 @@ export const StoreModal: React.FC<StoreModalProps> = ({
             </div>
             <div>
               <h2 className="text-sm font-black text-white tracking-wide">
-                Ruby Chan Store & VIP
+                RubyChan 2.0 Store & VIP
               </h2>
               <p className="text-[10px] text-rose-300/80 font-medium">Official MMK Payment Gateway</p>
             </div>
@@ -416,7 +416,7 @@ export const StoreModal: React.FC<StoreModalProps> = ({
                       <div className="bg-blue-950/50 border border-blue-500/40 p-3 rounded-xl space-y-1.5 text-xs">
                         <p className="font-extrabold text-blue-300">💙 KBZPay Official Merchant Transfer:</p>
                         <p className="text-slate-200">Phone / Account: <strong className="text-white font-mono">09 788 123 456</strong></p>
-                        <p className="text-slate-200">Account Name: <strong className="text-white">Ruby Chan Media Co.</strong></p>
+                        <p className="text-slate-200">Account Name: <strong className="text-white">RubyChan 2.0 Media Co.</strong></p>
                         <p className="text-[10px] text-slate-400">Send exact {pendingOrder.amountMmk.toLocaleString()} MMK and copy your transaction reference number below.</p>
                       </div>
                     )}
@@ -425,7 +425,7 @@ export const StoreModal: React.FC<StoreModalProps> = ({
                       <div className="bg-amber-950/50 border border-amber-500/40 p-3 rounded-xl space-y-1.5 text-xs">
                         <p className="font-extrabold text-amber-300">💛 WavePay Official Transfer:</p>
                         <p className="text-slate-200">Phone / Account: <strong className="text-white font-mono">09 788 123 456</strong></p>
-                        <p className="text-slate-200">Account Name: <strong className="text-white">Ruby Chan Media Co.</strong></p>
+                        <p className="text-slate-200">Account Name: <strong className="text-white">RubyChan 2.0 Media Co.</strong></p>
                         <p className="text-[10px] text-slate-400">Send exact {pendingOrder.amountMmk.toLocaleString()} MMK and copy your Transaction ID.</p>
                       </div>
                     )}

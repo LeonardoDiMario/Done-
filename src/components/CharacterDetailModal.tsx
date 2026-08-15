@@ -122,38 +122,58 @@ export const CharacterDetailModal: React.FC<CharacterDetailModalProps> = ({
         </div>
 
         {/* Modal Action Footer */}
-        <div className="p-3.5 bg-[#180b28] border-t border-rose-900/40 flex items-center justify-between gap-2">
-          {onOpenMemory && (
+        <div className="p-3.5 bg-[#180b28] border-t border-rose-900/40 flex flex-col gap-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            {/* Chat in WebApp Button */}
             <button
-              onClick={() => {
-                triggerHaptic('light');
-                onOpenMemory(character);
-              }}
-              className="py-3 px-3.5 bg-slate-900 hover:bg-rose-950 text-rose-300 border border-slate-700 hover:border-rose-600/60 rounded-2xl font-bold text-xs transition-all flex items-center gap-1.5 shrink-0"
-              title="View Memories"
+              onClick={() => handleNewChatClick(false)}
+              className="py-3 px-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white shadow-rose-950/80 ring-1 ring-rose-400/40"
             >
-              <Brain className="w-4 h-4 text-rose-400" />
-              <span>Memories</span>
+              <MessageSquare className="w-4 h-4 text-white" />
+              <span>CHAT IN WEB APP</span>
             </button>
-          )}
 
-          {isLocked ? (
-            <button
-              onClick={() => handleNewChatClick(true)}
-              className="flex-1 py-3.5 px-4 rounded-2xl font-black text-xs shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-amber-600 to-rose-600 text-white shadow-amber-950/80"
-            >
-              <Lock className="w-4 h-4 text-amber-300" />
-              <span>Unlock VIP to Start Chat</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => handleNewChatClick(true)}
-              className="flex-1 py-3.5 px-4 rounded-2xl font-black text-xs shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white shadow-rose-950/80 ring-1 ring-rose-400/40"
-            >
-              <Send className="w-4 h-4 text-white" />
-              <span>START CHAT ON TELEGRAM</span>
-            </button>
-          )}
+            {/* Chat in Telegram Bot Button */}
+            {isLocked ? (
+              <button
+                onClick={() => handleNewChatClick(true)}
+                className="py-3 px-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-amber-600 to-rose-600 text-white shadow-amber-950/80"
+              >
+                <Lock className="w-3.5 h-3.5 text-amber-300" />
+                <span>UNLOCK VIP</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => handleNewChatClick(true)}
+                className="py-3 px-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-sky-950/80 ring-1 ring-sky-400/40"
+              >
+                <Send className="w-3.5 h-3.5 text-white" />
+                <span>TELEGRAM BOT</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            {onOpenMemory && (
+              <button
+                onClick={() => {
+                  triggerHaptic('light');
+                  onOpenMemory(character);
+                }}
+                className="w-full py-2 px-3 bg-slate-900/90 hover:bg-rose-950 text-rose-300 border border-slate-700/60 hover:border-rose-600/60 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5"
+                title="View Memories"
+              >
+                <Brain className="w-3.5 h-3.5 text-rose-400" />
+                <span>Memory Ledger & Facts</span>
+              </button>
+            )}
+          </div>
+
+          <div className="text-center">
+            <span className="text-[10px] text-slate-400 font-medium">
+              ✨ Switch characters anytime to start fresh stories with persistent memory
+            </span>
+          </div>
         </div>
       </div>
     </div>

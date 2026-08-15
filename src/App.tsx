@@ -76,9 +76,22 @@ export default function App() {
     fetchCharacters();
     fetchPreferences();
 
-    // Check for secret owner admin portal query param ?admin=rubychan
+    // Check for secret owner admin portal query param ?admin=true or /owner-login or /admin path
     const params = new URLSearchParams(window.location.search);
-    if (params.get('admin') === 'rubychan' || params.get('admin') === '1') {
+    const path = window.location.pathname.toLowerCase();
+    if (
+      params.get('admin') === 'true' ||
+      params.get('admin') === 'rubychan' ||
+      params.get('admin') === '1' ||
+      params.get('admin') === 'owner' ||
+      params.get('owner') === '1' ||
+      params.get('owner') === 'true' ||
+      params.get('key') === 'rubychan_admin_2026' ||
+      path === '/admin' ||
+      path === '/owner' ||
+      path === '/owner-login'
+    ) {
+      localStorage.setItem('rubychan_admin_key', 'rubychan_admin_2026');
       setIsAdminModalOpen(true);
     }
   }, []);
@@ -195,8 +208,8 @@ export default function App() {
     setSelectedCharacterForModal(char);
   };
 
-  // NEW CHAT Button in Character Popup -> Starts Chat directly on Telegram
-  const handleStartNewChat = async (char: Character, launchTelegram = false) => {
+  // NEW CHAT Button in Character Popup -> Starts Chat directly on Telegram Bot
+  const handleStartNewChat = async (char: Character, launchTelegram = true) => {
     setSelectedCharacterForModal(null);
 
     // Initialize conversation record in Supabase
@@ -433,10 +446,16 @@ export default function App() {
 
       {/* Main Telegram App Header */}
       <TelegramHeader
+        activeCharacter={activeCharacter}
+        onBackToCharacters={() => {
+          setIsNavVisible(true);
+          setActiveCharacter(null);
+        }}
         energy={energy}
         gems={gems}
         activeEntitlement={activeEntitlement}
         onOpenStore={() => setIsStoreOpen(true)}
+        language={userPreferences.language}
       />
 
       {/* Main Active View Container */}
@@ -488,6 +507,7 @@ export default function App() {
                 onCreateCharacter={() => setIsCreatorModalOpen(true)}
                 onDeleteCharacter={handleDeleteCharacter}
                 isBurmese={isBurmese}
+                language={userPreferences.language}
               />
             )}
 
@@ -516,6 +536,7 @@ export default function App() {
                   }
                 }}
                 isBurmese={isBurmese}
+                language={userPreferences.language}
               />
             )}
 
@@ -539,6 +560,7 @@ export default function App() {
       {!activeCharacter && (
         <FloatingBottomNav
           activeTab={activeTab}
+          language={userPreferences.language}
           onChangeTab={(tab) => {
             setIsNavVisible(true);
             setActiveTab(tab);
@@ -622,11 +644,15 @@ export default function App() {
         type={policyModalType}
         onClose={() => setPolicyModalType(null)}
         isBurmese={isBurmese}
+        language={userPreferences.language}
       />
 
       {/* Owner Admin Dashboard Modal */}
       {isAdminModalOpen && (
-        <AdminDashboardModal onClose={() => setIsAdminModalOpen(false)} />
+        <AdminDashboardModal
+          onClose={() => setIsAdminModalOpen(false)}
+          onCharactersUpdated={fetchCharacters}
+        />
       )}
     </div>
   );

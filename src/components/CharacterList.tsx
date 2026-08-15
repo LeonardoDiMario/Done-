@@ -3,6 +3,7 @@ import { Search, Plus, Sparkles, Users, Flame } from 'lucide-react';
 import { Character, UserRelationship } from '../types';
 import { CharacterCard } from './CharacterCard';
 import { triggerHaptic } from '../utils/telegramSdk';
+import { t, SupportedLanguage } from '../utils/i18n';
 
 interface CharacterListProps {
   characters: Character[];
@@ -12,6 +13,7 @@ interface CharacterListProps {
   onCreateCharacter: () => void;
   onDeleteCharacter: (characterId: string) => void;
   isBurmese?: boolean;
+  language?: SupportedLanguage;
 }
 
 export const CharacterList: React.FC<CharacterListProps> = ({
@@ -20,12 +22,20 @@ export const CharacterList: React.FC<CharacterListProps> = ({
   onSelectCharacter,
   onOpenMemory,
   onCreateCharacter,
-  onDeleteCharacter
+  onDeleteCharacter,
+  language = 'my'
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const categories: string[] = ['All', 'Anime', 'Realistic', 'Sci-Fi', 'Fantasy', 'Custom'];
+  const categories: { id: string; key: string }[] = [
+    { id: 'All', key: 'cat_All' },
+    { id: 'Anime', key: 'cat_Anime' },
+    { id: 'Realistic', key: 'cat_Realistic' },
+    { id: 'Sci-Fi', key: 'cat_SciFi' },
+    { id: 'Fantasy', key: 'cat_Fantasy' },
+    { id: 'Custom', key: 'cat_Custom' }
+  ];
 
   const filteredCharacters = characters.filter((c) => {
     const matchesCategory = selectedCategory === 'All' || c.category === selectedCategory;
@@ -37,18 +47,18 @@ export const CharacterList: React.FC<CharacterListProps> = ({
   });
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-3 space-y-4 pb-24">
+    <div className="max-w-2xl mx-auto px-4 py-3 space-y-4 pb-28">
       {/* Title Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-0.5">
           <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
-            AI Companions
+            {t('ai_companions_title', language)}
             <span className="text-xs bg-rose-950/80 text-rose-300 border border-rose-800/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-              <Flame className="w-3 h-3 text-rose-400" /> Hot
+              <Flame className="w-3 h-3 text-rose-400" /> {language === 'my' ? 'လူကြိုက်များ' : 'Hot'}
             </span>
           </h1>
           <p className="text-xs text-slate-400">
-            Pick a character to start your fantasy roleplay journey
+            {t('ai_companions_desc', language)}
           </p>
         </div>
       </div>
@@ -60,7 +70,7 @@ export const CharacterList: React.FC<CharacterListProps> = ({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search character name or personality..."
+          placeholder={t('search_characters', language)}
           className="w-full bg-[#130b1b] border border-rose-900/40 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-rose-500 transition-colors shadow-inner"
         />
       </div>
@@ -69,18 +79,18 @@ export const CharacterList: React.FC<CharacterListProps> = ({
       <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
         {categories.map((cat) => (
           <button
-            key={cat}
+            key={cat.id}
             onClick={() => {
               triggerHaptic('light');
-              setSelectedCategory(cat);
+              setSelectedCategory(cat.id);
             }}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all ${
-              selectedCategory === cat
+              selectedCategory === cat.id
                 ? 'bg-[#2a122e] text-white border border-rose-500/60 shadow-lg shadow-rose-950/60'
                 : 'bg-[#130b1b] text-slate-400 hover:text-slate-200 border border-slate-800/80'
             }`}
           >
-            {cat}
+            {t(cat.key, language)}
           </button>
         ))}
       </div>
@@ -93,7 +103,7 @@ export const CharacterList: React.FC<CharacterListProps> = ({
             triggerHaptic('heavy');
             onCreateCharacter();
           }}
-          className="group relative bg-[#180d24] border border-rose-700/60 rounded-2xl overflow-hidden cursor-pointer hover:border-rose-400 transition-all duration-300 shadow-xl flex flex-col justify-between aspect-[3/4] p-3"
+          className="group relative bg-[#180d24] border border-rose-700/60 rounded-3xl overflow-hidden cursor-pointer hover:border-rose-400 transition-all duration-300 shadow-xl flex flex-col justify-between aspect-[3/4] p-3"
         >
           {/* Portal Background Art */}
           <img
@@ -114,10 +124,10 @@ export const CharacterList: React.FC<CharacterListProps> = ({
           {/* Bottom Card Title & Description */}
           <div className="relative z-10 space-y-0.5">
             <h3 className="font-black text-sm sm:text-base text-white group-hover:text-rose-300 transition-colors">
-              Create Character
+              {t('create_custom_character', language)}
             </h3>
             <p className="text-[11px] text-slate-300 opacity-90 leading-tight">
-              Design any persona with custom prompt & voice
+              {t('design_custom_ai', language)}
             </p>
           </div>
         </div>
@@ -136,22 +146,20 @@ export const CharacterList: React.FC<CharacterListProps> = ({
       </div>
 
       {filteredCharacters.length === 0 && (
-        <div className="bg-[#130b1b] border border-slate-800 rounded-2xl p-8 text-center space-y-3">
+        <div className="bg-[#130b1b] border border-slate-800 rounded-3xl p-8 text-center space-y-3">
           <Users className="w-10 h-10 text-slate-600 mx-auto" />
           <h3 className="text-sm font-bold text-slate-200">
-            No Characters Found
+            {language === 'my' ? 'ရှာဖွေတွေ့ရှိသည့် ဇာတ်ကောင် မရှိပါ' : 'No Characters Found'}
           </h3>
           <button
             onClick={onCreateCharacter}
-            className="px-4 py-2 bg-gradient-to-r from-rose-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-rose-950/60 transition-all inline-flex items-center space-x-1.5"
+            className="px-4 py-2 bg-gradient-to-r from-rose-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 text-white rounded-2xl font-bold text-xs shadow-lg shadow-rose-950/60 transition-all inline-flex items-center space-x-1.5"
           >
             <Plus className="w-4 h-4" />
-            <span>Create Custom Bot</span>
+            <span>{t('create_custom_character', language)}</span>
           </button>
         </div>
       )}
-
     </div>
   );
 };
-

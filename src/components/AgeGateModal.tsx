@@ -36,7 +36,7 @@ export const AgeGateModal: React.FC<AgeGateModalProps> = ({ isOpen, onConfirmAge
             Adult Access Verification (18+)
           </h2>
           <p className="text-xs text-slate-300 leading-relaxed">
-            Welcome to <span className="font-extrabold text-purple-300">Ruby Chan AI</span>. This app contains uncensored mature themes and roleplay content for adults only.
+            Welcome to <span className="font-extrabold text-purple-300">RubyChan 2.0 AI</span>. This app contains uncensored mature themes and roleplay content for adults only.
           </p>
         </div>
 

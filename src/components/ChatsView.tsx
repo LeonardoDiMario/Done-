@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   MessageSquare,
   Heart,
@@ -13,10 +13,15 @@ import {
   Sparkles,
   ExternalLink,
   ShieldAlert,
-  ListChecks
+  ListChecks,
+  Pin,
+  PinOff,
+  Bookmark
 } from 'lucide-react';
 import { triggerHaptic, triggerHapticNotification } from '../utils/telegramSdk';
 import { Character, ChatMessage, UserRelationship } from '../types';
+import { t, SupportedLanguage } from '../utils/i18n';
+import { apiFetch } from '../utils/api';
 
 interface ChatsViewProps {
   characters?: Character[];
@@ -29,6 +34,7 @@ interface ChatsViewProps {
   onClearHistoryForCharacter?: (charId: string) => void;
   onDeleteMessagesForCharacter?: (charId: string, messageIds: string[]) => void;
   isBurmese?: boolean;
+  language?: SupportedLanguage;
 }
 
 export const ChatsView: React.FC<ChatsViewProps> = ({
@@ -40,16 +46,34 @@ export const ChatsView: React.FC<ChatsViewProps> = ({
   onStartChatting,
   onCreateCharacter,
   onClearHistoryForCharacter,
-  onDeleteMessagesForCharacter
+  onDeleteMessagesForCharacter,
+  language = 'my'
 }) => {
   const [historyModalChar, setHistoryModalChar] = useState<Character | null>(null);
   const [isSelectMode, setIsSelectMode] = useState<boolean>(false);
-  const [selectedMsgIds, setSelectedMsgIds] = useState<string[]>([]);
   const [selectedCharIds, setSelectedCharIds] = useState<string[]>([]);
   const [isBulkDeleting, setIsBulkDeleting] = useState<boolean>(false);
+  const [pinnedCharIds, setPinnedCharIds] = useState<string[]>([]);
+  const [isTogglingPin, setIsTogglingPin] = useState<string | null>(null);
 
   const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = React.useRef<boolean>(false);
+
+  // Fetch active conversations & pinned list on mount
+  useEffect(() => {
+    const fetchActiveConvs = async () => {
+      try {
+        const res = await apiFetch('/api/conversations/active');
+        const data = await res.json();
+        if (data && Array.isArray(data.pinnedCharacterIds)) {
+          setPinnedCharIds(data.pinnedCharacterIds);
+        }
+      } catch (err) {
+        console.warn('Active conversations fetch fallback:', err);
+      }
+    };
+    fetchActiveConvs();
+  }, []);
 
   const handlePressStart = (charId: string) => {
     isLongPressRef.current = false;
@@ -79,16 +103,60 @@ export const ChatsView: React.FC<ChatsViewProps> = ({
     if (isSelectMode) {
       handleToggleSelectChar(char.id, e);
     } else {
-      handleOpenTelegramBot(char.id, true);
+      triggerHaptic('medium');
+      onSelectCharacter(char);
     }
   };
 
   const effectiveMessagesMap = activeMessages || messagesMap || {};
 
-  // Characters that have messages
-  const activeChatCharacters = characters.filter(
-    (c) => c && c.id && effectiveMessagesMap[c.id] && effectiveMessagesMap[c.id].length > 0
-  );
+  // Characters that have messages where user actually engaged or msgs exist
+  const activeChatCharacters = characters.filter((c) => {
+    if (!c || !c.id) return false;
+    const msgs = effectiveMessagesMap[c.id];
+    return Array.isArray(msgs) && msgs.length > 0 && msgs.some((m) => m.sender === 'user' || msgs.length > 1);
+  });
+
+  // Sort characters: Pinned first, then by last message timestamp descending
+  const sortedCharacters = [...activeChatCharacters].sort((a, b) => {
+    const isAPinned = pinnedCharIds.includes(a.id);
+    const isBPinned = pinnedCharIds.includes(b.id);
+    if (isAPinned && !isBPinned) return -1;
+    if (!isAPinned && isBPinned) return 1;
+
+    const msgsA = effectiveMessagesMap[a.id] || [];
+    const msgsB = effectiveMessagesMap[b.id] || [];
+    const timeA = msgsA[msgsA.length - 1]?.timestamp || '1970-01-01';
+    const timeB = msgsB[msgsB.length - 1]?.timestamp || '1970-01-01';
+    return new Date(timeB).getTime() - new Date(timeA).getTime();
+  });
+
+  const pinnedCount = sortedCharacters.filter((c) => pinnedCharIds.includes(c.id)).length;
+  const unpinnedCount = sortedCharacters.filter((c) => !pinnedCharIds.includes(c.id)).length;
+
+  const handleTogglePin = async (charId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    triggerHaptic('medium');
+    const isCurrentlyPinned = pinnedCharIds.includes(charId);
+    const updated = isCurrentlyPinned
+      ? pinnedCharIds.filter((id) => id !== charId)
+      : [...pinnedCharIds, charId];
+
+    setPinnedCharIds(updated);
+    setIsTogglingPin(charId);
+
+    try {
+      await apiFetch('/api/conversations/pin', {
+        method: 'POST',
+        body: JSON.stringify({ characterId: charId, pinned: !isCurrentlyPinned })
+      });
+      triggerHapticNotification('success');
+    } catch (err) {
+      console.error('Failed to update pin status:', err);
+    } finally {
+      setIsTogglingPin(null);
+    }
+  };
 
   const handleToggleSelectChar = (charId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -109,13 +177,16 @@ export const ChatsView: React.FC<ChatsViewProps> = ({
 
   const handleBulkDeleteConversations = async () => {
     if (selectedCharIds.length === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selectedCharIds.length} active conversation(s)?`)) {
+    const confirmMsg = language === 'my'
+      ? `စကားဝိုင်း ${selectedCharIds.length} ခုကို အပြီးတိုင် ဖျက်ရန် သေချာပါသလား?`
+      : `Are you sure you want to delete ${selectedCharIds.length} active conversation(s)?`;
+    
+    if (!confirm(confirmMsg)) {
       return;
     }
     setIsBulkDeleting(true);
     triggerHapticNotification('success');
     try {
-      const { apiFetch } = await import('../utils/api');
       await apiFetch('/api/conversations/delete', {
         method: 'POST',
         body: JSON.stringify({ characterIds: selectedCharIds })
@@ -124,6 +195,7 @@ export const ChatsView: React.FC<ChatsViewProps> = ({
         selectedCharIds.forEach((id) => onClearHistoryForCharacter(id));
       }
       setSelectedCharIds([]);
+      setIsSelectMode(false);
     } catch (err) {
       console.error('Failed to bulk delete conversations:', err);
     } finally {
@@ -138,464 +210,352 @@ export const ChatsView: React.FC<ChatsViewProps> = ({
       const prefix = isResume ? 'resume_' : 'char_';
       telegramUrl += `?start=${prefix}${charId}`;
     }
-    if (window.Telegram?.WebApp) {
-      window.Telegram.WebApp.openTelegramLink(telegramUrl);
+
+    if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.openTelegramLink) {
+      (window as any).Telegram.WebApp.openTelegramLink(telegramUrl);
     } else {
-      window.open(telegramUrl, '_blank');
-    }
-  };
-
-  const handleOpenHistory = (char: Character, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    triggerHaptic('light');
-    setHistoryModalChar(char);
-    setIsSelectMode(false);
-    setSelectedMsgIds([]);
-  };
-
-  const handleToggleSelectMsg = (msgId: string) => {
-    triggerHaptic('light');
-    setSelectedMsgIds((prev) =>
-      prev.includes(msgId) ? prev.filter((id) => id !== msgId) : [...prev, msgId]
-    );
-  };
-
-  const handleSelectAllMsgs = () => {
-    if (!historyModalChar) return;
-    triggerHaptic('medium');
-    const allMsgs = effectiveMessagesMap[historyModalChar.id] || [];
-    if (selectedMsgIds.length === allMsgs.length) {
-      setSelectedMsgIds([]);
-    } else {
-      setSelectedMsgIds(allMsgs.map((m) => m.id));
-    }
-  };
-
-  const handleDeleteSelected = async () => {
-    if (!historyModalChar || selectedMsgIds.length === 0) return;
-    if (confirm(`Delete ${selectedMsgIds.length} selected message(s) from history?`)) {
-      triggerHapticNotification('success');
-      if (onDeleteMessagesForCharacter) {
-        await onDeleteMessagesForCharacter(historyModalChar.id, selectedMsgIds);
-      }
-      setSelectedMsgIds([]);
-    }
-  };
-
-  const handleDeleteSingleMsg = async (msgId: string) => {
-    if (!historyModalChar) return;
-    triggerHaptic('heavy');
-    if (onDeleteMessagesForCharacter) {
-      await onDeleteMessagesForCharacter(historyModalChar.id, [msgId]);
-    }
-    setSelectedMsgIds((prev) => prev.filter((id) => id !== msgId));
-  };
-
-  const handleClearWholeHistory = async (charId: string) => {
-    if (confirm('Are you sure you want to delete the entire chat history transcript for this character?')) {
-      triggerHapticNotification('warning');
-      if (onClearHistoryForCharacter) {
-        await onClearHistoryForCharacter(charId);
-      }
-      setHistoryModalChar(null);
+      window.location.href = telegramUrl;
     }
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 py-4 space-y-5 flex flex-col justify-between min-h-[75vh] pb-24">
-      <div className="space-y-4">
-        {/* Header Title */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
-              <span>Active Conversations</span>
-              <span className="text-xs bg-rose-500/20 text-rose-300 font-extrabold px-2 py-0.5 rounded-full border border-rose-500/30">
-                {activeChatCharacters.length}
-              </span>
-            </h1>
-            <p className="text-[11px] text-slate-400">
-              {isSelectMode ? 'Select conversations to delete' : 'Press & hold any chat to select & delete'}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => {
-                triggerHaptic('light');
-                setIsSelectMode(!isSelectMode);
-                if (isSelectMode) setSelectedCharIds([]);
-              }}
-              className={`text-xs font-extrabold px-3 py-1.5 rounded-full border transition-all active:scale-95 shrink-0 ${
-                isSelectMode
-                  ? 'bg-rose-600 text-white border-rose-400'
-                  : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-rose-500'
-              }`}
-            >
-              {isSelectMode ? 'Done' : 'Select'}
-            </button>
-
-            <button
-              onClick={() => handleOpenTelegramBot()}
-              className="text-xs font-black text-rose-300 bg-rose-950/90 hover:bg-rose-900 border border-rose-700/60 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-md transition-all active:scale-95 shrink-0"
-            >
-              <Send className="w-3.5 h-3.5 text-rose-400" />
-              <span>Telegram</span>
-            </button>
-          </div>
+    <div className="max-w-2xl mx-auto px-4 py-3 space-y-4 pb-28">
+      {/* Title Header with Selection Mode Trigger */}
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+            {t('active_conversations', language)}
+            <span className="text-xs bg-rose-950/80 text-rose-300 border border-rose-800/40 px-2.5 py-0.5 rounded-full font-bold">
+              {activeChatCharacters.length}
+            </span>
+          </h1>
+          <p className="text-xs text-slate-400">
+            {t('chats_on_telegram_desc', language)}
+          </p>
         </div>
 
-        {activeChatCharacters.length === 0 ? (
-          /* Empty State Graphic */
-          <div className="flex flex-col items-center justify-center py-12 text-center space-y-4 bg-[#140a1f]/60 border border-rose-900/30 rounded-3xl p-6">
-            <div className="relative w-36 h-28 flex items-center justify-center">
-              <div className="absolute top-0 right-2 w-24 h-16 bg-rose-950/50 border border-rose-800/40 rounded-2xl flex items-center justify-center space-x-1 shadow-lg backdrop-blur-md">
-                <Heart className="w-3.5 h-3.5 fill-rose-400 text-rose-400" />
-                <Heart className="w-3.5 h-3.5 fill-rose-400 text-rose-400" />
-                <Heart className="w-3.5 h-3.5 fill-rose-400 text-rose-400" />
-              </div>
-
-              <div className="absolute bottom-0 left-2 w-24 h-16 bg-gradient-to-r from-rose-600 to-purple-600 border border-rose-400 rounded-2xl shadow-xl shadow-rose-950/60 flex items-center justify-center">
-                <MessageSquare className="w-6 h-6 text-white" />
-              </div>
-            </div>
-
-            <div className="space-y-1.5 max-w-xs">
-              <h2 className="text-base font-extrabold text-white">No active chats yet</h2>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Pick a companion to start a new chat. Chat history will be saved automatically with AI memory.
-              </p>
-            </div>
-
-            <button
-              onClick={() => {
-                triggerHaptic('medium');
-                if (onStartChatting) {
-                  onStartChatting();
-                } else if (onCreateCharacter) {
-                  onCreateCharacter();
-                }
-              }}
-              className="py-3 px-8 bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white rounded-2xl font-extrabold text-xs shadow-xl shadow-rose-950/60 active:scale-95 transition-all mt-2 flex items-center gap-2"
-            >
-              <Sparkles className="w-4 h-4" />
-              Explore Companions
-            </button>
-          </div>
-        ) : (
-          /* Active Chat List with Actions */
-          <div className="space-y-3">
-            {/* Bulk Selection Toolbar (Only visible when selecting) */}
-            {isSelectMode && (
-              <div className="flex items-center justify-between bg-[#180b28] p-2.5 rounded-2xl border border-rose-900/40 animate-fade-in">
-                <button
-                  onClick={handleSelectAllChars}
-                  className="text-xs font-bold text-rose-300 hover:text-white flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-950/60 border border-rose-800/40"
-                >
-                  {selectedCharIds.length === activeChatCharacters.length ? (
-                    <>
-                      <CheckSquare className="w-4 h-4 text-rose-400" />
-                      <span>Deselect All</span>
-                    </>
-                  ) : (
-                    <>
-                      <Square className="w-4 h-4 text-slate-400" />
-                      <span>Select All</span>
-                    </>
-                  )}
-                </button>
-
-                {selectedCharIds.length > 0 && (
-                  <button
-                    onClick={handleBulkDeleteConversations}
-                    disabled={isBulkDeleting}
-                    className="text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-500 border border-rose-400 px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-lg shadow-rose-950/80 active:scale-95 transition-all"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete Selected ({selectedCharIds.length})</span>
-                  </button>
-                )}
-              </div>
-            )}
-
-            {activeChatCharacters.map((char) => {
-              const msgs = effectiveMessagesMap[char.id] || [];
-              const lastMsg = msgs[msgs.length - 1];
-              const isSelected = selectedCharIds.includes(char.id);
-
-              return (
-                <div
-                  key={char.id}
-                  onMouseDown={() => handlePressStart(char.id)}
-                  onMouseUp={handlePressEnd}
-                  onTouchStart={() => handlePressStart(char.id)}
-                  onTouchEnd={handlePressEnd}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    handlePressStart(char.id);
-                  }}
-                  onClick={(e) => handleCardClick(char, e)}
-                  className={`bg-[#140a1f] border p-3.5 rounded-2xl space-y-3 shadow-lg transition-all group cursor-pointer select-none ${
-                    isSelected ? 'border-rose-500 bg-rose-950/30' : 'border-rose-900/40 hover:border-rose-500/60'
-                  }`}
-                >
-                  {/* Top Character Info */}
-                  <div className="flex items-center space-x-3">
-                    {isSelectMode && (
-                      <button
-                        onClick={(e) => handleToggleSelectChar(char.id, e)}
-                        className="p-1 text-slate-400 hover:text-rose-400 shrink-0"
-                      >
-                        {isSelected ? (
-                          <CheckSquare className="w-5 h-5 text-rose-400" />
-                        ) : (
-                          <Square className="w-5 h-5 text-slate-500" />
-                        )}
-                      </button>
-                    )}
-
-                    <div className="relative shrink-0">
-                      <img
-                        src={char.avatar}
-                        alt={char.name || ''}
-                        className="w-12 h-12 rounded-2xl object-cover ring-2 ring-rose-500/30"
-                      />
-                      <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-[#140a1f] rounded-full" />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-extrabold text-sm text-white group-hover:text-rose-300 transition-colors truncate">
-                          {char.name || 'Companion'}
-                        </h3>
-                        <span className="text-[10px] text-slate-500 font-medium">
-                          {lastMsg?.timestamp
-                            ? new Date(lastMsg.timestamp).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })
-                            : 'Active'}
-                        </span>
-                      </div>
-
-                      <p className="text-xs text-slate-400 line-clamp-1 mt-0.5 font-normal">
-                        {lastMsg?.text || char.greeting}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Action Bar for Row */}
-                  <div className="pt-2 border-t border-rose-900/30 grid grid-cols-2 gap-2 text-center">
-                    {/* View History Button */}
-                    <button
-                      onClick={(e) => handleOpenHistory(char, e)}
-                      className="bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/60 rounded-xl py-2 px-3 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-purple-400" />
-                      <span>View History ({msgs.length})</span>
-                    </button>
-
-                    {/* Resume on Telegram Button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenTelegramBot(char.id, true);
-                      }}
-                      className="bg-gradient-to-r from-rose-700 to-purple-700 hover:from-rose-600 hover:to-purple-600 text-white border border-rose-500/40 rounded-xl py-2 px-3 text-[11px] font-black flex items-center justify-center gap-1.5 shadow-md transition-all active:scale-95"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>Resume on Telegram</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        {activeChatCharacters.length > 0 && (
+          <button
+            onClick={() => {
+              triggerHaptic('light');
+              setIsSelectMode(!isSelectMode);
+              if (isSelectMode) setSelectedCharIds([]);
+            }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${
+              isSelectMode
+                ? 'bg-rose-600 text-white border-rose-500 shadow-md'
+                : 'bg-[#140a1f] text-slate-300 border-rose-900/40 hover:text-white'
+            }`}
+          >
+            <ListChecks className="w-3.5 h-3.5" />
+            <span>{isSelectMode ? (language === 'my' ? 'ပြီးပြီ' : 'Done') : (language === 'my' ? 'ရွေးချယ်မည်' : 'Select')}</span>
+          </button>
         )}
       </div>
 
-      {/* View Chat History Transcript Modal */}
+      {/* 5-Chat Limit & Pin Policy Information Notice */}
+      <div className="bg-gradient-to-r from-[#170926] via-[#1e0a30] to-[#12071f] border border-rose-800/40 rounded-2xl p-3 shadow-lg flex items-start gap-2.5 text-xs text-rose-200/90">
+        <div className="p-1.5 bg-rose-500/20 text-rose-300 rounded-lg shrink-0 mt-0.5">
+          <Pin className="w-3.5 h-3.5" />
+        </div>
+        <div className="space-y-1 min-w-0 flex-1">
+          <div className="flex items-center justify-between flex-wrap gap-1">
+            <span className="font-extrabold text-white text-[11px] uppercase tracking-wider">
+              {language === 'my' ? 'စကားဝိုင်း သတ်မှတ်ချက် & Pin စနစ်' : 'Active Chats & Pin Policy'}
+            </span>
+            <span className="text-[10px] font-bold bg-rose-900/60 px-2 py-0.5 rounded-full text-rose-300 border border-rose-700/50">
+              📌 {pinnedCount} Pinned • {unpinnedCount}/5 Unpinned
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-300 leading-relaxed">
+            {t('chat_limit_notice', language)}
+          </p>
+        </div>
+      </div>
+
+      {/* Select Mode Action Bar */}
+      {isSelectMode && (
+        <div className="bg-[#190c27] border border-rose-700/60 rounded-2xl p-3 flex items-center justify-between animate-fade-in shadow-xl">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleSelectAllChars}
+              className="text-xs text-rose-300 font-bold hover:text-white flex items-center gap-1.5"
+            >
+              {selectedCharIds.length === activeChatCharacters.length ? (
+                <CheckSquare className="w-4 h-4 text-rose-400" />
+              ) : (
+                <Square className="w-4 h-4 text-slate-400" />
+              )}
+              <span>{t('select_all', language)}</span>
+            </button>
+            <span className="text-xs text-slate-400 font-mono">
+              ({selectedCharIds.length}/{activeChatCharacters.length})
+            </span>
+          </div>
+
+          <button
+            onClick={handleBulkDeleteConversations}
+            disabled={selectedCharIds.length === 0 || isBulkDeleting}
+            className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-md flex items-center space-x-1.5 transition-all"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>{t('delete_selected', language)}</span>
+          </button>
+        </div>
+      )}
+
+      {/* Conversations List */}
+      <div className="space-y-2.5">
+        {sortedCharacters.map((char) => {
+          const msgs = effectiveMessagesMap[char.id] || [];
+          const lastMsg = msgs[msgs.length - 1];
+          const isSelected = selectedCharIds.includes(char.id);
+          const isPinned = pinnedCharIds.includes(char.id);
+
+          return (
+            <div
+              key={char.id}
+              onMouseDown={() => handlePressStart(char.id)}
+              onMouseUp={handlePressEnd}
+              onTouchStart={() => handlePressStart(char.id)}
+              onTouchEnd={handlePressEnd}
+              onClick={(e) => handleCardClick(char, e)}
+              className={`bg-[#140a1f] border p-3.5 rounded-3xl transition-all shadow-md group cursor-pointer flex items-center justify-between gap-3 relative overflow-hidden ${
+                isSelected
+                  ? 'border-rose-500 bg-rose-950/30 ring-1 ring-rose-500/40'
+                  : isPinned
+                  ? 'border-amber-500/60 bg-gradient-to-r from-[#1c0926] via-[#170921] to-[#12071f] shadow-amber-950/30 shadow-lg ring-1 ring-amber-500/30'
+                  : 'border-rose-900/40 hover:border-rose-500/60'
+              }`}
+            >
+              {/* Pinned Glowing Top Strip Indicator */}
+              {isPinned && (
+                <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-400 via-rose-500 to-purple-500" />
+              )}
+
+              <div className="flex items-center space-x-3 min-w-0 flex-1">
+                {isSelectMode && (
+                  <div
+                    onClick={(e) => handleToggleSelectChar(char.id, e)}
+                    className="p-1 text-slate-400 hover:text-white shrink-0"
+                  >
+                    {isSelected ? (
+                      <CheckSquare className="w-5 h-5 text-rose-400" />
+                    ) : (
+                      <Square className="w-5 h-5 text-slate-500" />
+                    )}
+                  </div>
+                )}
+
+                <div className="relative shrink-0">
+                  <img
+                    src={char.avatar}
+                    alt={char.name}
+                    className={`w-12 h-12 rounded-2xl object-cover ring-2 shrink-0 ${
+                      isPinned ? 'ring-amber-400 shadow-md shadow-amber-900/50' : 'ring-rose-500/40'
+                    }`}
+                  />
+                  {isPinned && (
+                    <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gradient-to-tr from-amber-500 to-rose-500 rounded-full flex items-center justify-center text-white shadow-md border border-slate-900">
+                      <Pin className="w-3 h-3 fill-white" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <h3 className="font-extrabold text-sm text-white group-hover:text-rose-300 truncate">
+                        {char.name}
+                      </h3>
+                      {isPinned && (
+                        <span className="text-[9px] font-extrabold bg-amber-950/80 text-amber-300 border border-amber-500/50 px-1.5 py-0.2 rounded-md shrink-0">
+                          {t('pinned_tag', language)}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-rose-400/80 font-mono shrink-0 pl-1">
+                      {msgs.length} {language === 'my' ? 'စကားဝိုင်း' : 'msgs'}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-400 truncate font-sans">
+                    {lastMsg ? lastMsg.text : char.greeting}
+                  </p>
+                </div>
+              </div>
+
+              {!isSelectMode && (
+                <div className="flex items-center gap-1 shrink-0">
+                  {/* Pin / Unpin Button */}
+                  <button
+                    onClick={(e) => handleTogglePin(char.id, e)}
+                    disabled={isTogglingPin === char.id}
+                    className={`p-2 rounded-xl transition-all border ${
+                      isPinned
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                        : 'bg-slate-900 hover:bg-rose-950 text-slate-400 hover:text-rose-300 border-slate-800'
+                    }`}
+                    title={isPinned ? t('unpin_chat', language) : t('pin_chat', language)}
+                  >
+                    <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-amber-400 text-amber-400' : ''}`} />
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenTelegramBot(char.id, true);
+                    }}
+                    className="p-2 rounded-xl bg-slate-900 hover:bg-sky-950 text-slate-400 hover:text-sky-300 transition-all border border-slate-800"
+                    title="Chat in Telegram Bot"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setHistoryModalChar(char);
+                    }}
+                    className="p-2 rounded-xl bg-slate-900 hover:bg-purple-950 text-slate-400 hover:text-purple-300 transition-all border border-slate-800"
+                    title="View History"
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      triggerHaptic('medium');
+                      onSelectCharacter(char);
+                    }}
+                    className="px-3 py-2 bg-gradient-to-r from-rose-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 text-white rounded-xl text-xs font-black shadow-md flex items-center space-x-1 active:scale-95 transition-all"
+                  >
+                    <span>{msgs.length > 0 ? t('resume_chat', language) : t('start_chat', language)}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Empty State */}
+      {activeChatCharacters.length === 0 && (
+        <div className="bg-[#140a1f] border border-rose-900/40 rounded-3xl p-8 text-center space-y-3.5 shadow-xl">
+          <div className="w-14 h-14 rounded-2xl bg-rose-950/60 border border-rose-700/50 flex items-center justify-center mx-auto text-rose-400 shadow-inner">
+            <MessageSquare className="w-7 h-7" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-extrabold text-white">
+              {t('no_conversations_yet', language)}
+            </h3>
+            <p className="text-xs text-slate-400 max-w-xs mx-auto">
+              {t('choose_char_to_chat', language)}
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              triggerHaptic('medium');
+              if (onStartChatting) onStartChatting();
+            }}
+            className="px-5 py-2.5 bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white rounded-2xl font-black text-xs shadow-lg shadow-rose-950/60 transition-all inline-flex items-center space-x-1.5 active:scale-95"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>{t('start_first_chat', language)}</span>
+          </button>
+        </div>
+      )}
+
+      {/* History Inspection Modal */}
       {historyModalChar && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-[#12081f] border border-rose-800/60 rounded-3xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-            {/* Modal Top Header */}
-            <div className="bg-[#180b28] px-4 py-3 border-b border-rose-900/40 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+          <div className="bg-[#12081c] border border-rose-900/60 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="bg-gradient-to-r from-rose-950 via-slate-950 to-purple-950 px-4 py-3.5 border-b border-rose-900/30 flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
                 <img
                   src={historyModalChar.avatar}
-                  alt={historyModalChar?.name || ''}
-                  className="w-9 h-9 rounded-2xl object-cover ring-2 ring-rose-500/50"
+                  alt={historyModalChar.name}
+                  className="w-8 h-8 rounded-full object-cover ring-2 ring-rose-500/60"
                 />
                 <div>
-                  <h3 className="font-black text-xs sm:text-sm text-white">
-                    {historyModalChar?.name || 'Companion'}
+                  <h3 className="font-extrabold text-sm text-white">
+                    {historyModalChar.name}
                   </h3>
-                  <p className="text-[10px] text-rose-300 font-medium">Chat History Transcript</p>
+                  <p className="text-[10px] text-rose-400">
+                    {language === 'my' ? 'ချက်တင် မှတ်တမ်း' : 'Conversation History'}
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-1.5">
-                {/* Select Mode Toggle */}
-                <button
-                  onClick={() => {
-                    triggerHaptic('light');
-                    setIsSelectMode(!isSelectMode);
-                    setSelectedMsgIds([]);
-                  }}
-                  className={`px-2.5 py-1 rounded-xl text-[10px] font-extrabold flex items-center gap-1 border transition-all ${
-                    isSelectMode
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
-                      : 'bg-slate-900 text-slate-300 border-slate-700'
-                  }`}
-                >
-                  <ListChecks className="w-3 h-3" />
-                  <span>{isSelectMode ? 'Cancel' : 'Select'}</span>
-                </button>
-
-                <button
-                  onClick={() => setHistoryModalChar(null)}
-                  className="p-1.5 rounded-full bg-slate-900 hover:bg-rose-950 text-slate-400 hover:text-white transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Resume on Telegram Primary Action Ribbon */}
-            <div className="bg-gradient-to-r from-rose-950/90 via-purple-950/90 to-indigo-950/90 p-3 border-b border-rose-800/40 flex items-center justify-between gap-2">
-              <div className="text-[11px] text-rose-200 leading-tight">
-                <span className="font-bold text-white block">Continue Roleplay on Telegram</span>
-                <span className="text-[10px] text-rose-300/80">
-                  Bot will sync with this character's AI memory
-                </span>
-              </div>
               <button
-                onClick={() => handleOpenTelegramBot(historyModalChar.id, true)}
-                className="py-2 px-3.5 bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl shadow-lg shadow-rose-950/80 flex items-center gap-1.5 shrink-0 active:scale-95 transition-all"
+                onClick={() => setHistoryModalChar(null)}
+                className="p-1.5 rounded-xl bg-slate-900 hover:bg-rose-950 text-slate-400 hover:text-white border border-slate-800"
               >
-                <Send className="w-3.5 h-3.5 text-white" />
-                <span>Resume</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Select Actions Bar (When Select Mode is Active) */}
-            {isSelectMode && (
-              <div className="bg-[#160a26] px-4 py-2 border-b border-rose-900/30 flex items-center justify-between text-xs">
-                <button
-                  onClick={handleSelectAllMsgs}
-                  className="text-[11px] font-bold text-slate-300 hover:text-white flex items-center gap-1"
-                >
-                  <CheckSquare className="w-3.5 h-3.5 text-rose-400" />
-                  <span>
-                    {selectedMsgIds.length ===
-                    (effectiveMessagesMap[historyModalChar.id] || []).length
-                      ? 'Deselect All'
-                      : 'Select All'}
-                  </span>
-                </button>
-
-                {selectedMsgIds.length > 0 && (
-                  <button
-                    onClick={handleDeleteSelected}
-                    className="text-[11px] font-extrabold text-rose-400 bg-rose-950/80 hover:bg-rose-900 border border-rose-700 px-2.5 py-1 rounded-lg flex items-center gap-1 active:scale-95"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>Delete ({selectedMsgIds.length})</span>
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Messages Transcript Scroll Area */}
-            <div className="p-4 overflow-y-auto space-y-3 flex-1 bg-[#0a0412]">
+            <div className="p-4 overflow-y-auto space-y-3 flex-1 text-xs">
               {(effectiveMessagesMap[historyModalChar.id] || []).length === 0 ? (
-                <div className="text-center py-12 space-y-2">
-                  <p className="text-xs text-slate-500">No messages recorded in chat history.</p>
+                <div className="text-center py-8 text-slate-500">
+                  {language === 'my' ? 'မှတ်တမ်း မရှိသေးပါ' : 'No recorded messages'}
                 </div>
               ) : (
-                (effectiveMessagesMap[historyModalChar.id] || []).map((msg) => {
-                  const isSelected = selectedMsgIds.includes(msg.id);
-
-                  return (
-                    <div
-                      key={msg.id}
-                      onClick={() => {
-                        if (isSelectMode) handleToggleSelectMsg(msg.id);
-                      }}
-                      className={`relative p-3 rounded-2xl text-xs space-y-1 transition-all ${
-                        isSelectMode ? 'cursor-pointer' : ''
-                      } ${
-                        isSelected
-                          ? 'bg-rose-950/60 border-2 border-rose-500 shadow-md'
-                          : msg.sender === 'user'
-                          ? 'bg-gradient-to-r from-rose-900/40 to-purple-900/40 border border-rose-800/30 text-white ml-6'
-                          : 'bg-[#140a1f] border border-rose-900/40 text-slate-200 mr-6'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between text-[9px] text-slate-400 border-b border-rose-900/20 pb-1 mb-1">
-                        <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
-                          {isSelectMode && (
-                            <span className="text-rose-400">
-                              {isSelected ? (
-                                <CheckSquare className="w-3.5 h-3.5" />
-                              ) : (
-                                <Square className="w-3.5 h-3.5" />
-                              )}
-                            </span>
-                          )}
-                          <span className={msg.sender === 'user' ? 'text-rose-300' : 'text-purple-300'}>
-                            {msg.sender === 'user' ? 'You' : (historyModalChar?.name || 'Bot')}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <span className="flex items-center gap-1 text-[9px] text-slate-500">
-                            <Clock className="w-2.5 h-2.5" />
-                            {msg.timestamp
-                              ? new Date(msg.timestamp).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })
-                              : 'Saved'}
-                          </span>
-
-                          {!isSelectMode && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteSingleMsg(msg.id);
-                              }}
-                              className="text-slate-600 hover:text-rose-400 p-0.5"
-                              title="Delete message"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                (effectiveMessagesMap[historyModalChar.id] || []).map((msg, idx) => (
+                  <div
+                    key={msg.id || idx}
+                    className={`p-3 rounded-2xl ${
+                      msg.sender === 'user'
+                        ? 'bg-rose-950/40 border border-rose-800/40 ml-6 text-rose-100'
+                        : 'bg-slate-900/80 border border-slate-800 mr-6 text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1 text-[10px] text-slate-400">
+                      <span className="font-bold">
+                        {msg.sender === 'user' ? (language === 'my' ? 'သင်' : 'You') : historyModalChar.name}
+                      </span>
+                      <span>
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
                     </div>
-                  );
-                })
+                    <p className="text-xs leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                    {msg.imageUrl && (
+                      <img
+                        src={msg.imageUrl}
+                        alt="Together AI Generated"
+                        className="mt-2 rounded-xl max-h-48 object-cover w-full border border-rose-500/30"
+                      />
+                    )}
+                  </div>
+                ))
               )}
             </div>
 
-            {/* Modal Bottom Footer */}
-            <div className="p-3 bg-[#180b28] border-t border-rose-900/40 flex items-center justify-between gap-2">
+            <div className="p-3 bg-[#160a22] border-t border-rose-900/30 flex items-center justify-between gap-2">
               <button
-                onClick={() => handleClearWholeHistory(historyModalChar.id)}
-                className="py-2 px-3 bg-slate-900 hover:bg-rose-950 text-rose-300 border border-slate-800 hover:border-rose-700/60 rounded-xl font-bold text-xs transition-all flex items-center gap-1 shrink-0"
+                onClick={() => {
+                  const target = historyModalChar;
+                  setHistoryModalChar(null);
+                  triggerHaptic('medium');
+                  onSelectCharacter(target);
+                }}
+                className="flex-1 py-2.5 px-3 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white rounded-xl text-xs font-black shadow flex items-center justify-center gap-1.5"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete History</span>
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Resume in Web App</span>
               </button>
 
               <button
-                onClick={() => handleOpenTelegramBot(historyModalChar.id, true)}
-                className="flex-1 py-2 bg-gradient-to-r from-rose-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 text-white rounded-xl font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
+                onClick={() => {
+                  const target = historyModalChar;
+                  setHistoryModalChar(null);
+                  handleOpenTelegramBot(target.id, true);
+                }}
+                className="flex-1 py-2.5 px-3 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black shadow flex items-center justify-center gap-1.5"
               >
                 <Send className="w-3.5 h-3.5" />
-                <span>Send to Telegram to Resume</span>
+                <span>Resume in Telegram</span>
               </button>
             </div>
           </div>

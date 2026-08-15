@@ -33,6 +33,7 @@ export interface ChatMessage {
   emotion?: CharacterEmotion;
   actionNarration?: string;
   audioUrl?: string;
+  imageUrl?: string;
   memoriesUpdated?: string[];
 }
 
@@ -52,8 +53,11 @@ export interface UserPersona {
   relationshipStyle: string;
 }
 
+import { SupportedLanguage } from './utils/i18n';
+
 export interface UserPreferences {
-  language: 'my' | 'en' | 'auto';
+  language: SupportedLanguage;
+  botLanguage?: SupportedLanguage;
   theme: 'telegram-dark' | 'telegram-light' | 'cyberpunk' | 'velvet';
   userPersona: UserPersona;
   rpStyle: 'narrative' | 'dialogue_only' | 'descriptive';
@@ -61,6 +65,8 @@ export interface UserPreferences {
   aiTemperature: number;
   speechEnabled: boolean;
   autoExtractMemories: boolean;
+  customDirectives?: string;
+  pinnedCharacterIds?: string[];
 }
 
 export interface UserRelationship {

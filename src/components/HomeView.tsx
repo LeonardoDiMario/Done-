@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Heart, Zap, Gift, Crown, MessageSquare, Plus, Flame, ChevronRight, User, ShieldCheck } from 'lucide-react';
-import { triggerHaptic, getTelegramUser } from '../utils/telegramSdk';
+import { Sparkles, Zap, Gift, Crown, MessageSquare, Plus, Flame, ChevronRight, User, ShieldCheck, Share2, Check } from 'lucide-react';
+import { triggerHaptic, triggerHapticNotification, getTelegramUser } from '../utils/telegramSdk';
 import { apiFetch } from '../utils/api';
 import { Character, UserPreferences } from '../types';
+import { t } from '../utils/i18n';
 
 interface HomeViewProps {
   characters: Character[];
@@ -34,9 +35,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [nextClaimAt, setNextClaimAt] = useState<string | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState<number>(0);
   const [isClaiming, setIsClaiming] = useState<boolean>(false);
+  const [copiedInvite, setCopiedInvite] = useState<boolean>(false);
 
+  const lang = userPreferences.language || 'my';
   const tgUser = getTelegramUser();
-  const userName = tgUser?.first_name || (tgUser?.username ? `@${tgUser.username}` : '') || userPreferences?.userPersona?.name || 'Traveler';
+  const userName = tgUser?.first_name || (tgUser?.username ? `@${tgUser.username}` : '') || userPreferences?.userPersona?.name || (lang === 'my' ? 'ဧည့်သည်တော်' : 'Traveler');
 
   // Fetch claim status on mount
   useEffect(() => {
@@ -97,18 +100,34 @@ export const HomeView: React.FC<HomeViewProps> = ({
           setNextClaimAt(data.nextClaimAt);
         }
         onAddEnergy(25);
-        alert('🎁 Daily Blessing Claimed! +25 Starlight Energy added!');
       } else {
         if (data.nextClaimAt) {
           setNextClaimAt(data.nextClaimAt);
         }
-        alert(`⌛ ${data.error || 'Daily claim is still on cooldown.'}`);
       }
     } catch (err) {
       console.error('Daily claim request failed:', err);
-      alert('Failed to process claim. Please check network and try again.');
     } finally {
       setIsClaiming(false);
+    }
+  };
+
+  const handleInviteFriend = () => {
+    triggerHaptic('medium');
+    const myTgId = tgUser?.id || 'guest';
+    const botUrl = `https://t.me/Rubby_Chan_Bot?start=ref_${myTgId}`;
+    const shareText = `Come chat with 18+ adult AI companions on RubyChan 2.0! Join using my invite: ${botUrl}`;
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(botUrl);
+      setCopiedInvite(true);
+      triggerHapticNotification('success');
+      setTimeout(() => setCopiedInvite(false), 2500);
+    }
+
+    if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.openTelegramLink) {
+      const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(botUrl)}&text=${encodeURIComponent(shareText)}`;
+      (window as any).Telegram.WebApp.openTelegramLink(tgShareUrl);
     }
   };
 
@@ -125,38 +144,38 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
             <div>
               <h1 className="text-lg font-black text-white tracking-tight flex items-center gap-1.5">
-                Welcome, {userName}! 👋
+                {lang === 'my' ? `မင်္ဂလာပါ ${userName}!` : `${userName}! 👋`}
               </h1>
-              <p className="text-[11px] text-rose-300/80 font-medium">
-                RubyChan Uncensored Roleplay Portal
+              <p className="text-[11px] text-rose-300/80 font-medium flex items-center gap-1">
+                RubyChan <span className="text-[9px] font-black text-purple-200 bg-purple-950/90 px-1 py-0.5 rounded border border-purple-700 leading-none">2.0</span> <span className="text-[9px] font-black text-rose-200 bg-rose-950/90 px-1 py-0.5 rounded border border-rose-700 leading-none">18+</span>
               </p>
             </div>
           </div>
 
-          <span className="bg-rose-950/80 border border-rose-700/60 text-rose-300 font-extrabold text-[10px] px-2.5 py-1 rounded-full flex items-center gap-1">
-            <ShieldCheck className="w-3 h-3 text-rose-400" />
-            18+ Active
+          <span className="bg-rose-950/80 border border-rose-700/60 text-emerald-300 font-extrabold text-[10px] px-2.5 py-1 rounded-full flex items-center gap-1">
+            <ShieldCheck className="w-3 h-3 text-emerald-400" />
+            {t('verified_status', lang)}
           </span>
         </div>
 
         {/* Quick Balance Stats Row */}
         <div className="grid grid-cols-3 gap-2 pt-2 border-t border-rose-900/40 text-center">
-          <div className="bg-[#12071d]/80 rounded-xl p-2 border border-rose-900/30">
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Mana</p>
+          <div className="bg-[#12071d]/80 rounded-2xl p-2 border border-rose-900/30">
+            <p className="text-[10px] text-slate-400 font-bold uppercase">{t('energy', lang)}</p>
             <p className="text-xs font-black text-amber-400 flex items-center justify-center gap-0.5 mt-0.5">
               <Zap className="w-3 h-3 fill-amber-400" /> {energy}
             </p>
           </div>
 
-          <div className="bg-[#12071d]/80 rounded-xl p-2 border border-rose-900/30">
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Ruby Orbs</p>
+          <div className="bg-[#12071d]/80 rounded-2xl p-2 border border-rose-900/30">
+            <p className="text-[10px] text-slate-400 font-bold uppercase">{t('gems', lang)}</p>
             <p className="text-xs font-black text-rose-300 flex items-center justify-center gap-0.5 mt-0.5">
               🔮 {gems}
             </p>
           </div>
 
-          <div className="bg-[#12071d]/80 rounded-xl p-2 border border-rose-900/30">
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Companions</p>
+          <div className="bg-[#12071d]/80 rounded-2xl p-2 border border-rose-900/30">
+            <p className="text-[10px] text-slate-400 font-bold uppercase">{t('nav_characters', lang)}</p>
             <p className="text-xs font-black text-purple-300 flex items-center justify-center gap-0.5 mt-0.5">
               💖 {characters.length}
             </p>
@@ -165,31 +184,59 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </div>
 
       {/* Daily Reward Claim Card */}
-      <div className="bg-gradient-to-r from-rose-950/60 via-purple-950/60 to-slate-950 border border-rose-600/40 rounded-2xl p-3.5 flex items-center justify-between shadow-xl">
+      <div className="bg-gradient-to-r from-rose-950/60 via-purple-950/60 to-slate-950 border border-rose-600/40 rounded-3xl p-3.5 flex items-center justify-between shadow-xl">
         <div className="space-y-1">
           <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-            <Gift className="w-2.5 h-2.5" /> Daily Blessing
+            <Gift className="w-2.5 h-2.5" /> {t('daily_blessing_title', lang)}
           </span>
-          <h3 className="font-extrabold text-xs text-white">Claim Daily +25 Energy</h3>
-          <p className="text-[10px] text-slate-400">Get +25 Starlight Energy free every 24h</p>
+          <h3 className="font-extrabold text-xs text-white">{t('daily_claim_title', lang)}</h3>
+          <p className="text-[10px] text-slate-400">{t('daily_claim_desc', lang)}</p>
         </div>
 
         {cooldownSeconds > 0 ? (
           <button
             disabled
-            className="px-3 py-2 rounded-xl text-[11px] font-extrabold bg-slate-900 border border-rose-900/40 text-slate-400 cursor-not-allowed shrink-0 flex items-center gap-1 shadow-inner"
+            className="px-3 py-2 rounded-2xl text-[11px] font-extrabold bg-slate-900 border border-rose-900/40 text-slate-400 cursor-not-allowed shrink-0 flex items-center gap-1 shadow-inner"
           >
-            Claimed ✓ Next in {formatHHMMSS(cooldownSeconds)}
+            {t('claimed_next_in', lang)} {formatHHMMSS(cooldownSeconds)}
           </button>
         ) : (
           <button
             onClick={handleClaimReward}
             disabled={isClaiming}
-            className="px-3.5 py-2 rounded-xl text-xs font-extrabold bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white shadow-lg shadow-rose-900/50 transition-all active:scale-95 shrink-0"
+            className="px-3.5 py-2 rounded-2xl text-xs font-extrabold bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white shadow-lg shadow-rose-900/50 transition-all active:scale-95 shrink-0"
           >
-            {isClaiming ? 'Claiming...' : 'Claim Daily +25 Energy'}
+            {isClaiming ? 'စောင့်ဆိုင်းပါ...' : t('daily_claim_title', lang)}
           </button>
         )}
+      </div>
+
+      {/* Task: Invite Friends (+25 Energy on first message) */}
+      <div className="bg-gradient-to-r from-indigo-950/60 via-purple-950/60 to-slate-950 border border-indigo-600/40 rounded-3xl p-3.5 flex items-center justify-between shadow-xl">
+        <div className="space-y-1 max-w-[65%]">
+          <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+            <Share2 className="w-2.5 h-2.5" /> Tasks
+          </span>
+          <h3 className="font-extrabold text-xs text-white">{t('task_invite_title', lang)}</h3>
+          <p className="text-[10px] text-slate-400 leading-snug">{t('task_invite_desc', lang)}</p>
+        </div>
+
+        <button
+          onClick={handleInviteFriend}
+          className="px-3.5 py-2 rounded-2xl text-xs font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-lg shadow-indigo-900/50 transition-all active:scale-95 shrink-0 flex items-center gap-1.5"
+        >
+          {copiedInvite ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{lang === 'my' ? 'ကူးပြီးပြီ' : 'Copied'}</span>
+            </>
+          ) : (
+            <>
+              <Share2 className="w-3.5 h-3.5" />
+              <span>{t('invite_now_btn', lang)}</span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* Quick Launch Featured Companions */}
@@ -197,13 +244,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-black text-white flex items-center gap-1.5">
             <Flame className="w-4 h-4 text-rose-500" />
-            Quick Roleplay Launch
+            {t('featured_characters', lang)}
           </h2>
           <button
             onClick={() => onNavigateTab('characters')}
             className="text-xs font-bold text-rose-400 hover:text-rose-300 flex items-center gap-0.5"
           >
-            See All ({characters.length}) <ChevronRight className="w-3.5 h-3.5" />
+            {t('all_characters', lang)} ({characters.length}) <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
@@ -228,7 +275,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </h3>
                 <p className="text-[10px] text-rose-400 truncate">{char.category}</p>
                 <span className="text-[9px] text-slate-400 mt-1 inline-flex items-center gap-0.5">
-                  <MessageSquare className="w-2.5 h-2.5 text-rose-400" /> Chat Now
+                  <MessageSquare className="w-2.5 h-2.5 text-rose-400" /> {t('start_chat', lang)}
                 </span>
               </div>
             </div>
@@ -238,7 +285,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* Quick Actions Grid */}
       <div className="space-y-2 pt-1">
-        <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Quick Actions</p>
+        <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">{t('quick_actions', lang)}</p>
         <div className="grid grid-cols-2 gap-2.5">
           <button
             onClick={() => {
@@ -251,8 +298,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <Plus className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-extrabold text-xs text-white group-hover:text-rose-300">Create AI Bot</p>
-              <p className="text-[10px] text-slate-400">Design custom AI</p>
+              <p className="font-extrabold text-xs text-white group-hover:text-rose-300">
+                {t('create_custom_character', lang)}
+              </p>
+              <p className="text-[10px] text-slate-400">{t('design_custom_ai', lang)}</p>
             </div>
           </button>
 
@@ -267,8 +316,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-extrabold text-xs text-white group-hover:text-amber-300">Ruby Orbs Store</p>
-              <p className="text-[10px] text-slate-400">Recharge Orbs</p>
+              <p className="font-extrabold text-xs text-white group-hover:text-amber-300">{t('gems_store', lang)}</p>
+              <p className="text-[10px] text-slate-400">{t('recharge_orbs', lang)}</p>
             </div>
           </button>
 
@@ -283,8 +332,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <Crown className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-extrabold text-xs text-white group-hover:text-purple-300">Empress VIP</p>
-              <p className="text-[10px] text-slate-400">Unlimited Pass</p>
+              <p className="font-extrabold text-xs text-white group-hover:text-purple-300">{t('empress_vip', lang)}</p>
+              <p className="text-[10px] text-slate-400">{t('unlimited_pass', lang)}</p>
             </div>
           </button>
 
@@ -299,8 +348,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <User className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-extrabold text-xs text-white group-hover:text-rose-300">Persona Profile</p>
-              <p className="text-[10px] text-slate-400">User settings</p>
+              <p className="font-extrabold text-xs text-white group-hover:text-rose-300">
+                {lang === 'my' ? 'User Settings' : t('nav_settings', lang)}
+              </p>
+              <p className="text-[10px] text-slate-400">
+                {lang === 'my' ? 'Persona, Voice & Profile' : t('profile_language_desc', lang)}
+              </p>
             </div>
           </button>
         </div>
