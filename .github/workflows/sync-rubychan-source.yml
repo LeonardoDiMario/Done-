@@ -1,0 +1,38 @@
+name: Sync RubyChan source
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: ${{ !contains(github.event.head_commit.message, '[sync-from-rubychan]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Done-
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Copy RubyChan source
+        run: |
+          rm -rf .git .github/workflows/sync-rubychan-source.yml
+          git clone --depth 1 https://github.com/LeonardoDiMario/Ruby-Chan-18-.git /tmp/rubychansource
+          cp -a /tmp/rubychansource/. .
+          rm -rf .git
+
+      - name: Commit synced source
+        run: |
+          git init
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git fetch origin main
+          git checkout -B main origin/main
+          git add -A
+          git commit -m '[sync-from-rubychan] Copy RubyChan source into Done-' || exit 0
+          git push origin main
