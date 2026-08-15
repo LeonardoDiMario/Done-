@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .font-ruby-logo {
+    font-family: 'Cinzel Decorative', 'Playfair Display', Georgia, serif;
+    font-weight: 900;
+  }
+}

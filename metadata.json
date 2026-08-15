@@ -1,0 +1,6 @@
+{
+  "name": "RubyChan 2.0 (18+)",
+  "description": "RubyChan 2.0 Next-Gen AI Roleplay Companion & Fantasy Chatbot Mini App with Memory System",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
