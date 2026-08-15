@@ -1,31 +1,30 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 let serviceSupabaseClient: SupabaseClient | null = null;
-let lastUsedUrl: string | undefined = undefined;
-let lastUsedKey: string | undefined = undefined;
+let lastUsedUrl: string | undefined;
+let lastUsedKey: string | undefined;
 
+/** Server-only Supabase client for the RubyChan project. */
 export function getServerSupabase(): SupabaseClient | null {
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!supabaseUrl || !supabaseKey) {
-    return null;
-  }
+  if (!supabaseUrl || !serviceRoleKey) return null;
 
-  // If credentials haven't changed and client exists, reuse
-  if (serviceSupabaseClient && lastUsedUrl === supabaseUrl && lastUsedKey === supabaseKey) {
+  if (serviceSupabaseClient && lastUsedUrl === supabaseUrl && lastUsedKey === serviceRoleKey) {
     return serviceSupabaseClient;
   }
 
   try {
-    serviceSupabaseClient = createClient(supabaseUrl, supabaseKey, {
+    serviceSupabaseClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: {
-        persistSession: false
+        persistSession: false,
+        autoRefreshToken: false
       }
     });
     lastUsedUrl = supabaseUrl;
-    lastUsedKey = supabaseKey;
-    console.log(`[ServerSupabase] Initialized Supabase client for project: ${supabaseUrl}`);
+    lastUsedKey = serviceRoleKey;
+    console.log(`[ServerSupabase] Connected to RubyChan Supabase: ${supabaseUrl}`);
     return serviceSupabaseClient;
   } catch (err) {
     console.warn('[ServerSupabase] Could not initialize Supabase client:', err);
